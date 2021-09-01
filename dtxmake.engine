@@ -1,57 +1,12 @@
 #!/bin/sh
 
 dtxfile=$1
-echo dtxfile="$dtxfile"
 dtxlog=${dtxfile/%dtx/log}
 
 # PATH="$PATH:/usr/texbin:/usr/local/bin"
 
 engines="$HOME/Library/TeXShop/Engines"
 MD5=/sbin/md5
-               
-# Look in the docstrip file for a string of the form
-#
-#     %% TEX dtxmake-subengine = foo
-#
-# and sets $engine to the full path of that engine.  Otherwise $engine is the full path to latex.
-#
-# see http://macosx-tex.576846.n2.nabble.com/TIP-how-to-use-TeXShop-engines-with-any-front-end-td5216133.html
-# (Thanks to Ram\'on Figueroa-Centeno)
-for var in "$1"; do
-    echo var="$var"
-	engine=`head -n20 "$var" | grep '% *!TEX dtxmake-subengine' | head -n1 | sed 's/.*= *\([^ ]*\)/\1/g'`
-
-    if [ "$engine" != "" ]; then
-		case "$engine" in
-			tex)
-            	engine=`defaults read TeXShop TexGSCommand`
-                ;;
-            latex)
-                engine=`defaults read TeXShop LatexGSCommand`
-                ;;
-            pdflatex)
-                engine=`defaults read TeXShop LatexCommand`
-            	;;
-            pdftex)
-                engine=`defaults read TeXShop TexCommand`
-                ;;
-            personaltex)
-                engine=`defaults read TeXShop TexScriptCommand`
-                ;;
-            personallatex)
-                engine=`defaults read TeXShop LatexScriptCommand`
-                ;;
-            *)
-            	if [ -f "$engines/$engine.engine" ]; then
-                	engine="$engines/$engine.engine"
-                else
-                    engine=`defaults read TeXShop LatexCommand`
-                fi
-        esac
-    else
-        engine=`defaults read TeXShop LatexCommand`
-    fi
-done 
 
 if [ ! -e "$dtxlog" -o "$dtxfile" -nt "$dtxlog" ]; then
 	latex $dtxfile
@@ -60,10 +15,53 @@ fi
 echo "Parsing $dtxlog for generated files"
 derived_files=`sed -n -e'/^Generating/,/^\\\\openout/p' "$dtxlog" | tr -d '\n' | cut -f2 -d\\) | cut -f1 -d"\\\\"`
 
-# this doesn't work if only the vc.tex file has changed.  
+# The test for newness is ONLY on the TeX files, not any files they require.
+# If you want to force a remake, do a non-operative edit like add a percent at the end of a line.
 for texfile in $derived_files; do
 	md5=$texfile.md5 
 	if [ ! -e "$md5" -o "`cat $md5`" != "`$MD5 $texfile`" ] ; then 
+        # Look for a subengine. 
+        # Attempt 1: Look for a string of the form
+        #     % !TEX dtxmake-subengine = foo
+        # in the file.
+        engine=`head -n20 "$texfile" | grep '% *!TEX dtxmake-subengine' | head -n1 | sed 's/.*= *\([^ ]*\)/\1/g'`
+        # Attempt 2: Look for a string of the form
+        #     % !TEX TS-Program = foo
+        # in the file.
+        # You can write the docstrip file so that different derived files have different engines.
+        if [ "$engine" = "" ]; then
+            engine=`head -n20 "$texfile" | grep '% *!TEX TS-program' | head -n1 | sed 's/.*= *\([^ ]*\)/\1/g'`
+        fi
+        if [ "$engine" != "" ]; then
+            case "$engine" in
+                tex)
+                    engine=`defaults read TeXShop TexGSCommand`
+                    ;;
+                latex)
+                    engine=`defaults read TeXShop LatexGSCommand`
+                    ;;
+                pdflatex)
+                    engine=`defaults read TeXShop LatexCommand`
+                    ;;
+                pdftex)
+                    engine=`defaults read TeXShop TexCommand`
+                    ;;
+                personaltex)
+                    engine=`defaults read TeXShop TexScriptCommand`
+                    ;;
+                personallatex)
+                    engine=`defaults read TeXShop LatexScriptCommand`
+                    ;;
+                *)
+                    if [ -f "$engines/$engine.engine" ]; then
+                        engine="$engines/$engine.engine"
+                    else
+                        engine=`defaults read TeXShop LatexCommand`
+                    fi
+            esac
+        else
+            engine=`defaults read TeXShop LatexCommand`
+        fi
 		echo "Running $engine on $texfile"
 		$engine $texfile
 		$MD5 $texfile > $md5
