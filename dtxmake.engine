@@ -1,6 +1,7 @@
 #!/bin/sh
 
 dtxfile=$1
+echo dtxfile="$dtxfile"
 dtxlog=${dtxfile/%dtx/log}
 
 # PATH="$PATH:/usr/texbin:/usr/local/bin"
@@ -16,7 +17,8 @@ MD5=/sbin/md5
 #
 # see http://macosx-tex.576846.n2.nabble.com/TIP-how-to-use-TeXShop-engines-with-any-front-end-td5216133.html
 # (Thanks to Ram\'on Figueroa-Centeno)
-for var in "$@"; do
+for var in "$1"; do
+    echo var="$var"
 	engine=`head -n20 "$var" | grep '% *!TEX dtxmake-subengine' | head -n1 | sed 's/.*= *\([^ ]*\)/\1/g'`
 
     if [ "$engine" != "" ]; then
